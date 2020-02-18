@@ -1,0 +1,54 @@
+---
+title: "NCEAS Training 2/18/20"
+date: "2/18/2020"
+author: "Hannah Fazekas"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+# Header One
+
+Here is where you annotate your code. **Bold Text** 
+
+* bulleted
+* list
+
+separate paragraphs by including a blank line between, same for bulleted list
+
+LaTeX example
+$\sum{x^2}$
+
+$$\sum{x^2}$$
+Keyboard shortcut = Ctrl Alt i
+supports python and bash as well as R
+
+```{r name_1}
+
+# is a comment in R
+x <- c(1,13, -5)
+x
+```
+
+
+chunk options to not show code but only output:
+```{r, echo=FALSE}
+y <- x+4
+print(y)
+```
+
+
+```{r}
+bg_chem <-read.csv("BGchem2008data.csv")
+## bg_chem <-read.csv("BGchem2008data.csv")  .. moves you up one folder then back down
+#can also source via read.csv("path/BGchem2008data.csv")
+
+
+```
+
+
+

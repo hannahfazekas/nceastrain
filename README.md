@@ -17,7 +17,7 @@ Pull and then Push to git
 
 i am changing the readme!!!! **dan**
 
-* and
+* and Hannah
 * we
 * also
 * have

@@ -17,7 +17,11 @@ Pull and then Push to git
 
 i am changing the readme!!!! **dan**
 
+<<<<<<< HEAD
 * and Hannah
+=======
+* and **i am changing line 20**
+>>>>>>> f3f63e6e6c02af18cfd738c99ad5e046baf80b41
 * we
 * also
 * have

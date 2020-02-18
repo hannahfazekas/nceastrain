@@ -14,3 +14,13 @@ save, check box (m will move) and hit commit
 new window -- give description and hit commit
 
 Pull and then Push to git
+
+i am changing the readme!!!! **dan**
+
+* and
+* we
+* also
+* have
+* a 
+* new
+* list?

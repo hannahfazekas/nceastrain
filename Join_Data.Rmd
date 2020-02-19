@@ -1,0 +1,136 @@
+---
+title: "Data Cleaning"
+author: "Hannah Fazekas"
+date: "2/19/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r, warning=FALSE, message=FALSE}
+library(dplyr)
+library(tidyr)
+```
+
+# Read in data
+
+We are using data from [Mike Byerly. Alaska commercial salmon catches by management region (1886- 1997). Gulf of Alaska Data Portal. df35b.304.2.](https://knb.ecoinformatics.org/view/df35b.304.2)
+
+```{r}
+catch_original <- read.csv(url("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.302.1", method = "libcurl"), stringsAsFactors =FALSE) 
+head(catch_original)
+
+```
+
+pipes: %>%  cntl shift m 
+df_cleaned <- df %>%  #df_cleaned gets df which gets the filter of a dataframe  
+              filter(...) %>%  #which gets the select of that dataframe
+              select(...)
+# Clean and reshape
+```{r}
+#remove all column and notes column
+catch_clean <- catch_original %>% 
+      select(Region, Year, Chinook, Sockeye, Coho, Pink, Chum) %>%  # or select(-All, -notesRegCode)
+      mutate(Chinook = ifelse(Chinook == "I", 1, Chinook)) %>% 
+      mutate(Chinook = as.numeric(Chinook))
+     
+head(catch_clean)
+summary(catch_clean) #chinook is read as a character so we need to fix this (should be numbers)
+
+
+```
+
+## QA
+
+Find where as.numeric could't convert Chinook to a number
+```{r}
+i <- which(is.na(catch_clean$Chinook))
+i
+catch_original[i, ]
+```
+
+Reshape from wide to tall format using 'pivot_longer'
+
+```{r}
+catch_long <- catch_clean %>% 
+      pivot_longer(cols = -c(Region, Year), 
+                      names_to = "species",
+                      values_to = "catch") %>% 
+          rename(catch_thousands = catch) %>% 
+          mutate(catch = catch_thousands*1000) %>% 
+          select(-catch_thousands)
+         #mutate(catch= catch* 1000) = more elegant method to do this
+
+head(catch_long)
+
+```
+
+```{r}
+catch_wide <- catch_long %>% 
+    pivot_wider(names_from = Year,
+                  values_from = catch)
+head(catch_wide)
+```
+
+## group_by and summarize
+
+generate summay tables of your dataframes
+
+```{r}
+mean_region <- catch_long %>% 
+      group_by(Region,species)  %>% # creates a semi-hidden attribute of your dataframe
+      summarise(catch_mean = mean(catch), num_obs = n())
+
+head(mean_region)
+
+#in what year was the salmon catch the highest
+annual_catch <- catch_long %>% 
+      group_by(Year) %>% 
+      summarise(catch_max = sum(catch)) %>% 
+      arrange(-catch_max) #arrange dataframe in decreasing order
+
+head(annual_catch)
+
+
+
+```
+
+What year had the highest sockeye catch
+
+```{r}
+annual_sockeye <- catch_long %>% 
+      filter(species == "Sockeye") %>% 
+      group_by(Year) %>% 
+      summarise(catch_max = sum(catch)) %>% 
+      arrange(-catch_max)
+head(annual_sockeye)
+
+```
+
+
+
+# Join two data tables
+
+
+Read in region data table
+
+```{r}
+region_defs <- read.csv(url("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.303.1", method = "libcurl"),stringsAsFactors = FALSE) %>% 
+    select(code, mgmtArea) #%>% 
+    #rename(Region=code)
+
+head(region_defs)
+```
+
+
+```{r}
+catch_joined <- left_join(catch_long, region_defs, by= c("Region" = "code"))
+
+head(catch_joined)
+
+```
+

@@ -111,11 +111,33 @@ p1<- ggplot(annual_esc, aes(x=Species, y=escapement)) + geom_col()
 p2 <- ggplot(annual_esc, aes(x=Species, y=escapement)) + geom_col(fill="blue")
 
 p3 <- ggplot(annual_esc, aes(x=Species, y=escapement)) + geom_col(fill="blue")
+
 p1 / p2 / p3
 
 p1+p2+p3
 
 ```
 
+
+Write a function to compute the percentage of a number
+```{r}
+pct <- function(n,p) {
+  n*p/100
+}
+```
+
+Write a function to compute the percentage by default but you can compute permil
+```{r}
+
+pctvar <- function(n, p, c = 100) {
+  n*p/c
+} #n = number (num), p = percentage or ratio (num), c= denominator (num). 
+
+pctvar(25,189)
+pctvar(25,189,1000)
+
+
+
+```
 
 

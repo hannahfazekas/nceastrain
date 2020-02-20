@@ -63,3 +63,59 @@ Changing the bar colors
 ggplot(annual_esc, aes(x=Species, y=escapement)) + geom_col(fill="blue")
 ```
 
+Plot per region
+
+```{r}
+ggplot(annual_esc, aes(x=Species, y=escapement, fill=SASAP.Region)) + geom_col()
+```
+
+### Looking into the Kodiak region
+
+Use piping to pass data for plots
+
+```{r}
+annual_esc %>% 
+  filter(SASAP.Region == "Kodiak") %>% 
+ggplot(aes(x = Year, y = escapement, color = Species)) + ylab("Escapement")+
+    geom_line() + scale_y_continuous(labels=comma)+#scale_y_log10()+
+    geom_point()+ggtitle("Annual Salmon Escapement in the Kodiak Region")+theme_bw()+ my_theme#theme(plot.title = element_text(hjust = 0.5), legend.position = "bottom")
+
+
+```
+
+```{r}
+#save theme into a variable:
+my_theme <- theme_bw()+theme(plot.title = element_text(hjust = 0.5), legend.position = "bottom", legend.title =element_blank())
+
+
+```
+
+Faceting plots
+
+```{r}
+ggplot(annual_esc, aes(x = Year, y = escapement, color = Species)) + 
+    geom_line() +
+    geom_point() +
+    scale_y_continuous(labels = comma) +
+    facet_wrap(~SASAP.Region, scales = "free_y", ncol = 2) +
+    ylab("Escapement") +
+    my_theme
+
+```
+
+
+
+```{r}
+p1<- ggplot(annual_esc, aes(x=Species, y=escapement)) + geom_col()
+
+p2 <- ggplot(annual_esc, aes(x=Species, y=escapement)) + geom_col(fill="blue")
+
+p3 <- ggplot(annual_esc, aes(x=Species, y=escapement)) + geom_col(fill="blue")
+p1 / p2 / p3
+
+p1+p2+p3
+
+```
+
+
+

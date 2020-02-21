@@ -1,0 +1,296 @@
+---
+title: "Geospatial Analysis"
+author: "Hannah Fazekas"
+date: "2/21/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+library(sf)
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(ggmap)
+library(leaflet)
+```
+
+# Read in the data
+
+```{r}
+ak_regions <- read_sf("data/ak_regions_simp.shp")
+
+plot(ak_regions) #does not look good
+
+class(ak_regions) #sf object, and a data.frame, 
+
+head(ak_regions) #geometry column -- geospatial vector data
+#4326 is WGS84 coordinate systems (what is used by GPS)
+
+st_crs(ak_regions) #function to print out what coordinate reference system you are using
+
+```
+
+coordinate reference systems are what you are using when making spatial maps
+ 
+ map is bad because it is not a good coordinate reference system in terms of being recognized by r
+
+contains the data and how to project that 3d data on a 2d surface
+
+can look up coordinate systems on epsg.io 
+We are using:
+EPSG Codes:
+3338 - Alaska Albers
+4326 - WGS84 (GPS) 
+3847 - pseudo meccator (Google Maps, Open Street Map)
+
+# Convert coordinate systems 
+  
+  To more appropriately display map
+  
+```{r}
+ak_regions_3338 <- ak_regions %>% 
+      st_transform(crs = 3338)
+
+st_crs(ak_regions_3338)
+
+plot(ak_regions_3338)
+```
+
+# sf works with the tidyverse 
+
+So, we can use all of those functions
+
+```{r}
+ak_regions_3338 %>% 
+    filter(region == "Southeast") %>% 
+    select(region)
+    
+```
+
+The geometry column is 'sticky' and unless you explicitly tell R to drop it, it will continue to keep the information together. 
+
+
+# Spatial joins and summaries
+
+```{r}
+pop <- read.csv("data/alaska_population.csv", stringsAsFactors = F)
+
+head(pop)
+
+#make pop a spatial object
+pop_4326 <- st_as_sf(pop,
+                     coords = c("lng", "lat"),
+                     crs = 4326,
+                     remove = FALSE) #we don't know but if it is lat long data, its a good bet that it is WGS84
+head(pop_4326)
+
+#use a spatial join to add pop data to region data
+pop_joined <- st_join(pop_4326, ak_regions_3338, join=st_within)
+#error because coordinate systems are not the same
+pop_3338 <- pop_4326 %>% 
+        st_transform(crs = 3338)
+
+pop_joined <- st_join(pop_3338, ak_regions_3338, join=st_within)
+
+head(pop_joined)
+
+plot(pop_joined)
+```
+
+In st_join, there is an argument 'join' that requires you to specify a predicate function depending on your data. We have population points to match with polygons of region.
+x and y objects must also be of class sf
+We want to use the st_within
+
+# Calculate population by region
+```{r}
+pop_region <- pop_joined %>% 
+    group_by(region) %>% 
+    summarise(total_pop = sum(population))
+
+plot(pop_region) #keeps geometry so it doesn't really do what we want
+
+?sf::tidyverse
+
+pop_region <- pop_joined %>% 
+    as.data.frame() %>% 
+    group_by(region) %>% 
+    summarise(total_pop = sum(population))
+
+head(pop_region)
+#rejoin this to shapefile
+
+pop_region_3338 <- left_join(ak_regions_3338, pop_region)
+
+plot(pop_region_3338)
+
+```
+
+
+#Example using tidyverse on spatial data with purpose
+```{r}
+pop_mgmt_3338 <- pop_region_3338 %>% 
+    group_by(mgmt_area) %>% 
+    summarise(total_pop = sum(total_pop))
+plot(pop_mgmt_3338["total_pop"])
+
+```
+
+```{r}
+write_sf(pop_region_3338, "data/ak_regions_pop.shp", delete_layer = TRUE)
+#delete_layer -- can remove layers 
+
+```
+
+
+
+# Make maps!
+
+sf works really well with ggplot2
+
+```{r}
+rivers_3338 <- read_sf("data/ak_rivers_simp.shp")
+st_crs(rivers_3338)
+
+ggplot() + 
+  geom_sf(data= pop_region_3338, aes(fill = total_pop))+ theme_bw()+
+  geom_sf(data = pop_3338, aes(), size=0.5)+
+  geom_sf(data=rivers_3338, aes(size= StrOrder), color="blue")+
+  scale_size(range=c(0.01,0.2), guide = F)+
+  labs(fill= "Total Population")+
+  scale_fill_continuous(low = "khaki", high="firebrick", labels = comma)
+  
+
+
+```
+
+
+# Getting basemaps using ggmap
+
+Grabs stuff from Google Maps and Open Street Map
+
+```{r}
+pop_3857 <- pop_3338 %>% 
+    st_transform(crs = 3857)
+
+```
+
+Going to get map from a server called stamenmap
+
+```{r}
+# Define a function to fix the bbox to be in EPSG:3857
+# See https://github.com/dkahle/ggmap/issues/160#issuecomment-397055208
+ggmap_bbox_to_3857 <- function(map) {
+  if (!inherits(map, "ggmap")) stop("map must be a ggmap object")
+  # Extract the bounding box (in lat/lon) from the ggmap to a numeric vector, 
+  # and set the names to what sf::st_bbox expects:
+  map_bbox <- setNames(unlist(attr(map, "bb")), 
+                       c("ymin", "xmin", "ymax", "xmax"))
+  
+  # Coonvert the bbox to an sf polygon, transform it to 3857, 
+  # and convert back to a bbox (convoluted, but it works)
+  bbox_3857 <- st_bbox(st_transform(st_as_sfc(st_bbox(map_bbox, crs = 4326)), 3857))
+  
+  # Overwrite the bbox of the ggmap object with the transformed coordinates 
+  attr(map, "bb")$ll.lat <- bbox_3857["ymin"]
+  attr(map, "bb")$ll.lon <- bbox_3857["xmin"]
+  attr(map, "bb")$ur.lat <- bbox_3857["ymax"]
+  attr(map, "bb")$ur.lon <- bbox_3857["xmax"]
+  map
+}
+```
+
+```{r}
+bbox <- c(-170, 52, -130, 64) #lat longs in units of degrees
+ak_map <- get_stamenmap(bbox, zoom = 4)
+ak_map_3857 <- ggmap_bbox_to_3857(ak_map)
+
+class(ak_map_3857) #special ggmap raster
+plot(ak_map_3857)
+```
+
+```{r}
+ggmap(ak_map_3857)+
+  geom_sf(data = pop_3857, aes(color= population), inherit.aes = F)+
+  scale_color_continuous(low="khaki", high = "firebrick", labels = comma)
+
+```
+
+
+## Interactive Maps using leaflet
+
+```{r}
+#define the leaflet projection
+epsg3338 <- leaflet::leafletCRS(
+  crsClass = "L.Proj.CRS",
+  code = "EPSG:3338",
+  proj4def =  "+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs",
+  resolutions = 2^(16:7))
+
+st_crs(pop_region_3338)
+
+pop_region_4326 <- pop_region_3338 %>% st_transform(crs = 4326)
+
+```
+
+```{r}
+
+#leaflet uses pipes, not pluses like in ggplot
+m <- leaflet(options = leafletOptions(crs = epsg3338)) %>%
+        addPolygons(data = pop_region_4326, 
+                    fillColor = "gray",
+                    weight = 1)
+
+m
+
+pal <- colorNumeric(palette = "Reds", domain = pop_region_4326$total_pop)
+
+m <- leaflet(options = leafletOptions(crs = epsg3338)) %>%
+        addPolygons(data = pop_region_4326, 
+                    fillColor = ~pal(total_pop),
+                    weight = 1,
+                    color = "black",
+                    fillOpacity = 1,
+                    label = ~region) %>% 
+        addLegend(position = "bottomleft",
+                  pal = pal,
+                  values = range(pop_region_4326$total_pop),
+                  title = "Total Population")
+
+
+m
+```
+
+
+```{r}
+pal <- colorNumeric(palette = "Reds", domain = pop_region_4326$total_pop)
+
+m <- leaflet(options = leafletOptions(crs = epsg3338)) %>%
+        #addTiles() %>% # to add world tiles. Must remove above arguments for it to match            the projections
+        addPolygons(data = pop_region_4326, 
+                    fillColor = ~pal(total_pop),
+                    weight = 1,
+                    color = "black",
+                    fillOpacity = 1) %>% 
+        addCircleMarkers(data = pop_4326,
+                         lat = ~lat,
+                         lng = ~lng,
+                         radius = ~log(population/500), # arbitrary scaling
+                         fillColor = "gray",
+                         fillOpacity = 1,
+                         weight = 0.25,
+                         color = "black",
+                         label = ~paste0(pop_4326$city, ", population ", comma(pop_4326$population))) %>%
+        addLegend(position = "bottomleft",
+                  pal = pal,
+                  values = range(pop_region_4326$total_pop),
+                  title = "Total Population")
+
+m
+```
+

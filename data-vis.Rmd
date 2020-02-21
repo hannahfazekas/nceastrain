@@ -141,3 +141,10 @@ pctvar(25,189,1000)
 ```
 
 
+Source my function
+```{r}
+source("my_function_pct.R")
+
+
+```
+
